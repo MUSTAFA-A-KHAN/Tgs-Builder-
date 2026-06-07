@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lottie TGS Builder</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; min-height: 100vh; padding: 2rem; }
+  h1 { font-size: 20px; font-weight: 500; margin-bottom: 1.5rem; color: #1a1a1a; display: flex; align-items: center; gap: 8px; }
+  h1 span { font-size: 13px; font-weight: 400; color: #888; background: #e8e8e2; padding: 3px 10px; border-radius: 99px; }
+  .wrap { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+  .top { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .panel { background: #fff; border: 0.5px solid #ddd; border-radius: 12px; padding: 1.25rem; }
+  .panel-title { font-size: 11px; font-weight: 500; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 1rem; }
+  .preview-box { width: 100%; aspect-ratio: 1; background: #f0f0ea; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  #lottie-container { width: 100%; height: 100%; }
+  .placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; color: #aaa; font-size: 13px; }
+  .placeholder i { font-size: 36px; opacity: 0.4; }
+  .controls { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row label { font-size: 13px; color: #666; min-width: 80px; }
+  .row input[type=range] { flex: 1; accent-color: #333; }
+  .row span { font-size: 13px; font-weight: 500; min-width: 32px; text-align: right; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font-size: 13px; padding: 7px 14px; border-radius: 8px; border: 0.5px solid #ccc; background: transparent; color: #1a1a1a; cursor: pointer; transition: background 0.15s; }
+  button:hover { background: #f5f5f0; }
+  button.primary { background: #f0f0ea; font-weight: 500; }
+  .upload-zone { border: 1.5px dashed #ccc; border-radius: 8px; padding: 1.5rem; text-align: center; cursor: pointer; transition: background 0.15s; }
+  .upload-zone:hover { background: #f5f5f0; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .info-item { background: #f5f5f0; border-radius: 8px; padding: 10px 12px; }
+  .info-item .val { font-size: 16px; font-weight: 500; color: #1a1a1a; }
+  .info-item .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset-btn { font-size: 12px; padding: 5px 10px; }
+  .status { font-size: 12px; color: #888; padding: 6px 0; min-height: 20px; }
+  .status.ok { color: #1D9E75; }
+  .status.err { color: #D85A30; }
+  .bottom { display: flex; gap: 1rem; }
+  .bottom .panel { flex: 1; }
+  #file-input { display: none; }
+  .play-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .frame-scrub { flex: 1; accent-color: #333; }
+  .loop-badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 0.5px solid #ddd; color: #888; cursor: pointer; user-select: none; }
+  .loop-badge.active { background: #E1F5EE; color: #0F6E56; border-color: #5DCAA5; }
+  .req-item { font-size: 12px; color: #666; line-height: 1.8; display: flex; align-items: center; gap: 6px; }
+  .req-item i { font-size: 15px; }
+  @media (max-width: 600px) { .top, .bottom { grid-template-columns: 1fr; flex-direction: column; } body { padding: 1rem; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><i class="ti ti-mood-happy"></i> Lottie TGS Builder <span>Telegram Sticker Tool</span></h1>
+
+  <div class="top">
+    <div class="panel">
+      <div class="panel-title">Preview</div>
+      <div class="preview-box" id="preview-box">
+        <div id="lottie-container"></div>
+        <div class="placeholder" id="placeholder">
+          <i class="ti ti-mood-happy"></i>
+          <span>Load or pick a preset</span>
+        </div>
+      </div>
+      <div class="play-bar">
+        <button id="play-btn" title="Play/Pause"><i class="ti ti-player-play"></i></button>
+        <input type="range" class="frame-scrub" id="frame-scrub" min="0" max="100" value="0" step="1">
+        <span id="frame-out" style="font-size:12px;color:#888;min-width:40px">0 / 0</span>
+        <span class="loop-badge" id="loop-badge">loop</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Controls</div>
+      <div class="controls">
+        <div class="row">
+          <label>Speed</label>
+          <input type="range" min="0.1" max="3" step="0.1" value="1" id="speed-slider">
+          <span id="speed-out">1.0×</span>
+        </div>
+        <div class="row">
+          <label>Scale</label>
+          <input type="range" min="50" max="200" step="5" value="100" id="scale-slider">
+          <span id="scale-out">100%</span>
+        </div>
+        <div class="row">
+          <label>BG</label>
+          <input type="color" id="bg-color" value="#ffffff" style="width:36px;height:28px;border:0.5px solid #ccc;border-radius:6px;padding:2px;cursor:pointer;">
+          <label style="min-width:auto;font-size:12px;color:#666">Transparent</label>
+          <input type="checkbox" id="transparent-check" checked style="margin-left:4px;">
+        </div>
+        <div style="margin-top:4px;">
+          <div style="font-size:13px;color:#666;margin-bottom:8px;">Presets</div>
+          <div class="presets">
+            <button class="preset-btn" onclick="loadPreset('heart')">❤️ Heart</button>
+            <button class="preset-btn" onclick="loadPreset('star')">⭐ Star</button>
+            <button class="preset-btn" onclick="loadPreset('thumbs')">👍 Thumbs</button>
+            <button class="preset-btn" onclick="loadPreset('fire')">🔥 Fire</button>
+            <button class="preset-btn" onclick="loadPreset('wave')">👋 Wave</button>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:4px;">
+          <button class="primary" onclick="document.getElementById('file-input').click()"><i class="ti ti-upload"></i> Import JSON / TGS</button>
+          <button onclick="exportTGS()"><i class="ti ti-download"></i> Export .tgs</button>
+          <button onclick="exportJSON()"><i class="ti ti-file"></i> Export .json</button>
+        </div>
+        <input type="file" id="file-input" accept=".json,.tgs" onchange="handleFile(event)">
+        <div class="status" id="status">Pick a preset or import a Lottie JSON / .tgs file.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="panel">
+      <div class="panel-title">Animation info</div>
+      <div class="info-grid" id="info-grid">
+        <div class="info-item"><div class="val" id="i-frames">—</div><div class="lbl">Total frames</div></div>
+        <div class="info-item"><div class="val" id="i-fps">—</div><div class="lbl">Frame rate</div></div>
+        <div class="info-item"><div class="val" id="i-dur">—</div><div class="lbl">Duration</div></div>
+        <div class="info-item"><div class="val" id="i-size">—</div><div class="lbl">JSON size</div></div>
+        <div class="info-item"><div class="val" id="i-layers">—</div><div class="lbl">Layers</div></div>
+        <div class="info-item"><div class="val" id="i-tgs">—</div><div class="lbl">TGS size (est.)</div></div>
+      </div>
+    </div>
+    <div class="panel" style="max-width:260px;">
+      <div class="panel-title">TGS requirements</div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div class="req-item" id="req-fps"><i class="ti ti-circle"></i> Frame rate: 60 fps max</div>
+        <div class="req-item" id="req-frames"><i class="ti ti-circle"></i> Max frames: 180</div>
+        <div class="req-item" id="req-size"><i class="ti ti-circle"></i> TGS size: ≤ 64 KB</div>
+        <div class="req-item" id="req-canvas"><i class="ti ti-circle"></i> Canvas: 512×512</div>
+        <div class="req-item" id="req-loop"><i class="ti ti-circle"></i> Should loop</div>
+        <div class="req-item" id="req-noimg"><i class="ti ti-circle"></i> No raster images</div>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:#888;line-height:1.6;">
+        TGS = gzip-compressed Lottie JSON.<br>
+        Upload to Telegram via <a href="https://t.me/stickers" target="_blank" style="color:#1D9E75;">@Stickers bot</a>.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let anim = null, currentJSON = null, isPlaying = true, looping = true;
+const container = document.getElementById('lottie-container');
+const placeholder = document.getElementById('placeholder');
+const status = document.getElementById('status');
+const playBtn = document.getElementById('play-btn');
+const frameScrub = document.getElementById('frame-scrub');
+const frameOut = document.getElementById('frame-out');
+const loopBadge = document.getElementById('loop-badge');
+
+loopBadge.addEventListener('click', () => {
+  looping = !looping;
+  loopBadge.classList.toggle('active', looping);
+  if (anim) anim.loop = looping;
+});
+
+playBtn.addEventListener('click', () => {
+  if (!anim) return;
+  if (isPlaying) { anim.pause(); isPlaying = false; playBtn.innerHTML = '<i class="ti ti-player-play"></i>'; }
+  else { anim.play(); isPlaying = true; playBtn.innerHTML = '<i class="ti ti-player-pause"></i>'; }
+});
+
+frameScrub.addEventListener('input', () => {
+  if (!anim) return;
+  anim.pause(); isPlaying = false;
+  playBtn.innerHTML = '<i class="ti ti-player-play"></i>';
+  anim.goToAndStop(parseInt(frameScrub.value), true);
+});
+
+document.getElementById('speed-slider').addEventListener('input', function() {
+  const v = parseFloat(this.value).toFixed(1);
+  document.getElementById('speed-out').textContent = v + '×';
+  if (anim) anim.setSpeed(parseFloat(v));
+});
+
+document.getElementById('scale-slider').addEventListener('input', function() {
+  const v = parseInt(this.value);
+  document.getElementById('scale-out').textContent = v + '%';
+  container.style.transform = `scale(${v/100})`;
+  container.style.transformOrigin = 'center center';
+});
+
+document.getElementById('transparent-check').addEventListener('change', function() {
+  document.getElementById('preview-box').style.background = this.checked ? 'transparent' : document.getElementById('bg-color').value;
+});
+
+document.getElementById('bg-color').addEventListener('input', function() {
+  document.getElementById('transparent-check').checked = false;
+  document.getElementById('preview-box').style.background = this.value;
+});
+
+function setStatus(msg, type) { status.textContent = msg; status.className = 'status' + (type ? ' ' + type : ''); }
+
+function updateInfo(json) {
+  const fps = json.fr || 0, frames = json.op - (json.ip || 0);
+  const dur = fps > 0 ? (frames / fps).toFixed(2) + 's' : '—';
+  const layers = (json.layers || []).length;
+  const jsonStr = JSON.stringify(json);
+  const jsonKB = (new TextEncoder().encode(jsonStr).length / 1024).toFixed(1);
+  let tgsEstKB = '—';
+  try { tgsEstKB = (pako.gzip(jsonStr).length / 1024).toFixed(1); } catch(e) {}
+  document.getElementById('i-frames').textContent = Math.round(frames);
+  document.getElementById('i-fps').textContent = fps;
+  document.getElementById('i-dur').textContent = dur;
+  document.getElementById('i-size').textContent = jsonKB + ' KB';
+  document.getElementById('i-layers').textContent = layers;
+  document.getElementById('i-tgs').textContent = tgsEstKB + ' KB';
+  const tgsNum = parseFloat(tgsEstKB);
+  checkReq('req-fps', fps <= 60, `Frame rate: ${fps} fps (max 60)`);
+  checkReq('req-frames', frames <= 180, `Max frames: ${Math.round(frames)} (max 180)`);
+  checkReq('req-size', tgsNum <= 64, `TGS size: ${tgsEstKB} KB (max 64 KB)`);
+  checkReq('req-canvas', json.w == 512 && json.h == 512, `Canvas: ${json.w||'?'}×${json.h||'?'} (req 512×512)`);
+  checkReq('req-loop', json.op > 0, `Should loop`);
+  const hasImg = (json.assets||[]).some(a => a.p && !a.p.endsWith('.json'));
+  checkReq('req-noimg', !hasImg, hasImg ? 'Raster images found ⚠️' : 'No raster images ✓');
+}
+
+function checkReq(id, ok, label) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<i class="ti ${ok ? 'ti-circle-check' : 'ti-circle-x'}" style="color:${ok ? '#1D9E75' : '#D85A30'}"></i> ${label}`;
+}
+
+function loadAnimation(json) {
+  currentJSON = json;
+  placeholder.style.display = 'none';
+  if (anim) { anim.destroy(); anim = null; }
+  container.innerHTML = '';
+  anim = lottie.loadAnimation({ container, renderer: 'svg', loop: true, autoplay: true, animationData: json });
+  isPlaying = true;
+  playBtn.innerHTML = '<i class="ti ti-player-pause"></i>';
+  looping = true; loopBadge.classList.add('active');
+  const totalFrames = json.op - (json.ip || 0);
+  frameScrub.max = Math.max(0, Math.round(totalFrames) - 1);
+  frameScrub.value = 0;
+  anim.addEventListener('enterFrame', (e) => {
+    const f = Math.round(e.currentTime);
+    frameScrub.value = f;
+    frameOut.textContent = f + ' / ' + Math.round(totalFrames);
+  });
+  updateInfo(json);
+  anim.setSpeed(parseFloat(document.getElementById('speed-slider').value));
+}
+
+function handleFile(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      let json;
+      if (file.name.endsWith('.tgs')) {
+        json = JSON.parse(pako.inflate(new Uint8Array(ev.target.result), { to: 'string' }));
+        setStatus('TGS decompressed and loaded ✓', 'ok');
+      } else {
+        json = JSON.parse(ev.target.result);
+        setStatus('Lottie JSON loaded ✓', 'ok');
+      }
+      loadAnimation(json);
+    } catch(err) { setStatus('Error: ' + err.message, 'err'); }
+  };
+  if (file.name.endsWith('.tgs')) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+  e.target.value = '';
+}
+
+function exportTGS() {
+  if (!currentJSON) { setStatus('Nothing to export.', 'err'); return; }
+  try {
+    const compressed = pako.gzip(JSON.stringify(currentJSON));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([compressed], { type: 'application/octet-stream' }));
+    a.download = 'sticker.tgs'; a.click();
+    setStatus('Exported sticker.tgs ✓', 'ok');
+  } catch(e) { setStatus('Export failed: ' + e.message, 'err'); }
+}
+
+function exportJSON() {
+  if (!currentJSON) { setStatus('Nothing to export.', 'err'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(currentJSON, null, 2)], { type: 'application/json' }));
+  a.download = 'sticker.json'; a.click();
+  setStatus('Exported sticker.json ✓', 'ok');
+}
+
+function makeHeartJSON() {
+  return {v:"5.7.4",fr:60,ip:0,op:60,w:512,h:512,nm:"Heart",ddd:0,assets:[],layers:[{ddd:0,ind:1,ty:4,nm:"Heart",sr:1,ks:{o:{a:0,k:100},r:{a:0,k:0},p:{a:0,k:[256,256,0]},a:{a:0,k:[0,0,0]},s:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[80,80,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:15,s:[110,110,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:30,s:[95,95,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:45,s:[105,105,100]},{t:60,s:[80,80,100]}]}},ao:0,shapes:[{ty:"gr",nm:"Heart Shape",it:[{ty:"sh",nm:"Path",ks:{a:0,k:{i:[[0,0],[45,-30],[60,30],[0,60],[-60,30],[-45,-30],[0,0]],o:[[0,0],[45,30],[60,-30],[0,-60],[-60,-30],[-45,30],[0,0]],v:[[0,30],[80,-50],[160,0],[160,80],[0,180],[-160,80],[-160,0]],c:true}}},{ty:"fl",nm:"Fill",o:{a:0,k:100},c:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[0.95,0.25,0.3,1]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:30,s:[1,0.1,0.2,1]},{t:60,s:[0.95,0.25,0.3,1]}]},r:1},{ty:"tr",p:{a:0,k:[0,0]},a:{a:0,k:[0,0]},s:{a:0,k:[100,100]},r:{a:0,k:0},o:{a:0,k:100}}]}],ip:0,op:60,st:0,bm:0}]};
+}
+
+function makeStarJSON() {
+  const pts=[];for(let i=0;i<5;i++){const a=(Math.PI*2*i/5)-Math.PI/2,b=a+Math.PI/5;pts.push([Math.cos(a)*160,Math.sin(a)*160]);pts.push([Math.cos(b)*65,Math.sin(b)*65]);}
+  return {v:"5.7.4",fr:60,ip:0,op:90,w:512,h:512,nm:"Star",ddd:0,assets:[],layers:[{ddd:0,ind:1,ty:4,nm:"Star",sr:1,ks:{o:{a:0,k:100},p:{a:0,k:[256,256,0]},a:{a:0,k:[0,0,0]},r:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[0]},{t:90,s:[360]}]},s:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[60,60,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:20,s:[105,105,100]},{t:90,s:[60,60,100]}]}},ao:0,shapes:[{ty:"gr",nm:"Star",it:[{ty:"sh",nm:"Path",ks:{a:0,k:{i:pts.map(()=>[0,0]),o:pts.map(()=>[0,0]),v:pts,c:true}}},{ty:"fl",nm:"Fill",o:{a:0,k:100},c:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[1,0.85,0.1,1]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:45,s:[1,0.6,0,1]},{t:90,s:[1,0.85,0.1,1]}]},r:1},{ty:"tr",p:{a:0,k:[0,0]},a:{a:0,k:[0,0]},s:{a:0,k:[100,100]},r:{a:0,k:0},o:{a:0,k:100}}]}],ip:0,op:90,st:0,bm:0}]};
+}
+
+function makeThumbsJSON() {
+  return {v:"5.7.4",fr:60,ip:0,op:60,w:512,h:512,nm:"Thumbs Up",ddd:0,assets:[],layers:[{ddd:0,ind:1,ty:4,nm:"Thumb",sr:1,ks:{o:{a:0,k:100},r:{a:0,k:0},a:{a:0,k:[0,0,0]},p:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[256,300,0]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:20,s:[256,220,0]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:40,s:[256,240,0]},{t:60,s:[256,300,0]}]},s:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[80,80,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:15,s:[115,115,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:30,s:[100,100,100]},{t:60,s:[80,80,100]}]}},ao:0,shapes:[{ty:"gr",nm:"Thumb",it:[{ty:"sh",nm:"Path",ks:{a:0,k:{i:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],o:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],v:[[-20,-120],[60,-120],[80,-40],[120,-40],[120,80],[-20,80],[-60,20]],c:true}}},{ty:"fl",nm:"Fill",o:{a:0,k:100},c:{a:0,k:[0.2,0.6,1,1]},r:1},{ty:"tr",p:{a:0,k:[0,0]},a:{a:0,k:[0,0]},s:{a:0,k:[100,100]},r:{a:0,k:0},o:{a:0,k:100}}]}],ip:0,op:60,st:0,bm:0}]};
+}
+
+function makeFlameLayer(ind,nm,pos,colors,startFrame,opacity,op){return{ddd:0,ind,ty:4,nm,sr:1,ks:{o:{a:0,k:Math.round(opacity*100)},r:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:startFrame,s:[-8]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:startFrame+20,s:[8]},{t:startFrame+40,s:[-8]}]},p:{a:0,k:[...pos,0]},a:{a:0,k:[0,0,0]},s:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:startFrame,s:[80,90,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:startFrame+15,s:[85,100,100]},{t:startFrame+30,s:[80,90,100]}]}},ao:0,shapes:[{ty:"gr",nm:"Flame",it:[{ty:"sh",nm:"Path",ks:{a:0,k:{i:[[0,0],[20,40],[-20,40],[-20,-40],[20,-40]],o:[[0,0],[-20,-40],[20,-40],[20,40],[-20,40]],v:[[0,-120],[60,0],[0,120],[-60,0],[0,-60]],c:true}}},{ty:"fl",nm:"Fill",o:{a:0,k:100},c:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[...colors[0]]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:30,s:[...colors[1]]},{t:60,s:[...colors[0]]}]},r:1},{ty:"tr",p:{a:0,k:[0,0]},a:{a:0,k:[0,0]},s:{a:0,k:[100,100]},r:{a:0,k:0},o:{a:0,k:100}}]}],ip:0,op,st:0,bm:0};}
+
+function makeFireJSON(){return{v:"5.7.4",fr:60,ip:0,op:60,w:512,h:512,nm:"Fire",ddd:0,assets:[],layers:[makeFlameLayer(1,"Flame1",[256,300],[[1,0.35,0,1],[1,0.6,0,1]],0,0.85,60),makeFlameLayer(2,"Flame2",[230,310],[[1,0.5,0,1],[1,0.8,0,1]],10,0.7,60),makeFlameLayer(3,"Flame3",[280,310],[[1,0.2,0,1],[1,0.5,0,1]],5,0.75,60)]};}
+
+function makeWaveJSON(){return{v:"5.7.4",fr:60,ip:0,op:90,w:512,h:512,nm:"Wave",ddd:0,assets:[],layers:[{ddd:0,ind:1,ty:4,nm:"Hand",sr:1,ks:{o:{a:0,k:100},p:{a:0,k:[256,256,0]},a:{a:0,k:[0,0,0]},r:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[-20]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:22,s:[20]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:45,s:[-20]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:67,s:[20]},{t:90,s:[-20]}]},s:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[80,80,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:10,s:[100,100,100]},{t:90,s:[80,80,100]}]}},ao:0,shapes:[{ty:"gr",nm:"Hand",it:[{ty:"sh",nm:"Palm",ks:{a:0,k:{i:[[0,0],[0,0],[0,0],[0,0]],o:[[0,0],[0,0],[0,0],[0,0]],v:[[-80,0],[80,0],[80,160],[-80,160]],c:true}}},{ty:"sh",nm:"Thumb",ks:{a:0,k:{i:[[0,0],[0,0],[0,0]],o:[[0,0],[0,0],[0,0]],v:[[-80,40],[-140,-20],[-80,0]],c:true}}},{ty:"fl",nm:"Fill",o:{a:0,k:100},c:{a:0,k:[1,0.75,0.2,1]},r:1},{ty:"tr",p:{a:0,k:[0,0]},a:{a:0,k:[0,0]},s:{a:0,k:[100,100]},r:{a:0,k:0},o:{a:0,k:100}}]}],ip:0,op:90,st:0,bm:0}]};}
+
+function loadPreset(name) {
+  const map = { heart: makeHeartJSON, star: makeStarJSON, thumbs: makeThumbsJSON, fire: makeFireJSON, wave: makeWaveJSON };
+  if (map[name]) { loadAnimation(map[name]()); setStatus('Preset "' + name + '" loaded ✓', 'ok'); }
+}
+
+loadPreset('heart');
+</script>
+</body>
+</html>
