@@ -432,9 +432,41 @@ function createText() {
   const fontSelect = document.getElementById('font-select');
   const fontName = fontSelect.options[fontSelect.selectedIndex].value;
 
-  const json = makeTextJSON(text, fontName, fontName);
-  loadAnimation(json);
-  setStatus('Text Lottie loaded ✓', 'ok');
+  const dataUrl = fontSelect.options[fontSelect.selectedIndex].getAttribute('data-url');
+
+  if (currentJSON) {
+    // Append to existing animation
+    const textLayer = makeTextJSON(text, fontName, fontName).layers[0];
+
+    // Ensure fonts exist
+    if (!currentJSON.fonts) currentJSON.fonts = { list: [] };
+
+    // Add font if not exists
+    const existingFont = currentJSON.fonts.list.find(f => f.fName === fontName);
+    if (!existingFont) {
+      const newFontObj = { fName: fontName, fFamily: fontName, fStyle: "Regular", ascent: 71.39892578125 };
+      if (dataUrl) newFontObj.fClass = dataUrl;
+      currentJSON.fonts.list.push(newFontObj);
+    }
+
+    // Add layer
+    currentJSON.layers.unshift(textLayer); // Add to front so it appears on top
+
+    // Update op/ip if needed
+    textLayer.op = currentJSON.op || 60;
+
+    // Reload animation
+    loadAnimation(currentJSON);
+    setStatus('Text appended to existing animation ✓', 'ok');
+  } else {
+    // Create new
+    const json = makeTextJSON(text, fontName, fontName);
+    if (dataUrl && json.fonts && json.fonts.list[0]) {
+      json.fonts.list[0].fClass = dataUrl;
+    }
+    loadAnimation(json);
+    setStatus('Text Lottie loaded ✓', 'ok');
+  }
 }
 
 function loadPreset(name) {
