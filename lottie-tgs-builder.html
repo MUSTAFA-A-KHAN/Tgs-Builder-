@@ -94,6 +94,21 @@
           <input type="checkbox" id="transparent-check" checked style="margin-left:4px;">
         </div>
         <div style="margin-top:4px;">
+          <div style="font-size:13px;color:#666;margin-bottom:8px;">Text Generation</div>
+          <div style="display:flex;flex-direction:column;gap:8px;background:#f5f5f0;padding:10px;border-radius:8px;">
+            <div class="row" style="gap:4px">
+              <input type="text" id="text-input" placeholder="Enter text..." value="Hello!" style="flex:1;padding:4px 8px;border:0.5px solid #ccc;border-radius:6px;font-size:12px;">
+              <select id="font-select" style="padding:4px;border:0.5px solid #ccc;border-radius:6px;font-size:12px;">
+                <option value="Arial">Arial</option>
+                <option value="Courier New">Courier</option>
+                <option value="Times New Roman">Times</option>
+                <!-- Custom fonts injected here -->
+              </select>
+            </div>
+            <button class="preset-btn" onclick="createText()" style="width:100%;text-align:center;background:#e8e8e2;">📝 Generate Text Lottie</button>
+          </div>
+        </div>
+        <div style="margin-top:4px;">
           <div style="font-size:13px;color:#666;margin-bottom:8px;">Presets</div>
           <div class="presets">
             <button class="preset-btn" onclick="loadPreset('heart')">❤️ Heart</button>
@@ -104,11 +119,11 @@
           </div>
         </div>
         <div class="btn-row" style="margin-top:4px;">
-          <button class="primary" onclick="document.getElementById('file-input').click()"><i class="ti ti-upload"></i> Import JSON / TGS</button>
+          <button class="primary" onclick="document.getElementById('file-input').click()"><i class="ti ti-upload"></i> Import Files</button>
           <button onclick="exportTGS()"><i class="ti ti-download"></i> Export .tgs</button>
           <button onclick="exportJSON()"><i class="ti ti-file"></i> Export .json</button>
         </div>
-        <input type="file" id="file-input" accept=".json,.tgs" onchange="handleFile(event)">
+        <input type="file" id="file-input" accept=".json,.tgs,image/*,.ttf,.otf,.woff,.woff2" multiple onchange="handleFile(event)">
         <div class="status" id="status">Pick a preset or import a Lottie JSON / .tgs file.</div>
       </div>
     </div>
@@ -145,6 +160,54 @@
 </div>
 
 <script>
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+}
+
+function makeImageJSON(base64Data, width, height) {
+  return {
+    "v": "5.7.4", "fr": 60, "ip": 0, "op": 60, "w": 512, "h": 512, "nm": "Image Layer", "ddd": 0,
+    "assets": [{ "id": "image_0", "w": width, "h": height, "u": "", "p": base64Data, "e": 1 }],
+    "layers": [{
+      "ddd": 0, "ind": 1, "ty": 2, "nm": "Image", "refId": "image_0", "sr": 1,
+      "ks": {
+        "o": { "a": 0, "k": 100 }, "r": { "a": 0, "k": 0 }, "p": { "a": 0, "k": [256, 256, 0] },
+        "a": { "a": 0, "k": [width / 2, height / 2, 0] },
+        "s": { "a": 0, "k": [Math.min(100, (512 / width) * 100), Math.min(100, (512 / height) * 100), 100] }
+      },
+      "ao": 0, "ip": 0, "op": 60, "st": 0, "bm": 0
+    }]
+  };
+}
+
+function makeTextJSON(text, fontName = "Arial", fontFamily = "Arial", fontStyle = "Regular") {
+  return {
+    "v": "5.7.4", "fr": 60, "ip": 0, "op": 60, "w": 512, "h": 512, "nm": "Text Layer", "ddd": 0,
+    "assets": [],
+    "fonts": {
+      "list": [{ "fName": fontName, "fFamily": fontFamily, "fStyle": fontStyle, "ascent": 71.39892578125 }]
+    },
+    "layers": [{
+      "ddd": 0, "ind": 1, "ty": 5, "nm": text, "sr": 1,
+      "ks": {
+        "o": { "a": 0, "k": 100 }, "r": { "a": 0, "k": 0 }, "p": { "a": 0, "k": [256, 256, 0] },
+        "a": { "a": 0, "k": [0, 0, 0] }, "s": { "a": 0, "k": [100, 100, 100] }
+      },
+      "ao": 0,
+      "t": {
+        "d": { "k": [{ "s": { "s": 100, "f": fontName, "t": text, "j": 2, "tr": 0, "lh": 120, "ls": 0, "fc": [0, 0, 0] }, "t": 0 }] },
+        "p": {}, "m": { "g": 1, "a": { "a": 0, "k": [0, 0] } }, "a": []
+      },
+      "ip": 0, "op": 60, "st": 0, "bm": 0
+    }]
+  };
+}
+
 let anim = null, currentJSON = null, isPlaying = true, looping = true;
 const container = document.getElementById('lottie-container');
 const placeholder = document.getElementById('placeholder');
@@ -247,24 +310,82 @@ function loadAnimation(json) {
   anim.setSpeed(parseFloat(document.getElementById('speed-slider').value));
 }
 
-function handleFile(e) {
-  const file = e.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    try {
-      let json;
-      if (file.name.endsWith('.tgs')) {
-        json = JSON.parse(pako.inflate(new Uint8Array(ev.target.result), { to: 'string' }));
-        setStatus('TGS decompressed and loaded ✓', 'ok');
-      } else {
-        json = JSON.parse(ev.target.result);
-        setStatus('Lottie JSON loaded ✓', 'ok');
+async function handleFile(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  let jsonFile = files.find(f => f.name.endsWith('.json') || f.name.endsWith('.tgs'));
+  let imageFiles = files.filter(f => f.type.startsWith('image/'));
+  let fontFiles = files.filter(f => f.name.match(/\.(ttf|otf|woff|woff2)$/i));
+
+  try {
+    let json = null;
+
+    if (jsonFile) {
+      const isTGS = jsonFile.name.endsWith('.tgs');
+      const buffer = await new Promise(r => { const reader = new FileReader(); reader.onload = ev => r(ev.target.result); isTGS ? reader.readAsArrayBuffer(jsonFile) : reader.readAsText(jsonFile); });
+      json = isTGS ? JSON.parse(pako.inflate(new Uint8Array(buffer), { to: 'string' })) : JSON.parse(buffer);
+
+      // Inject images
+      if (imageFiles.length && json.assets) {
+        for (let img of imageFiles) {
+          const b64 = await fileToBase64(img);
+          const asset = json.assets.find(a => a.p === img.name || a.id === img.name);
+          if (asset) { asset.u = ""; asset.p = b64; asset.e = 1; }
+          else { json.assets.push({ id: img.name, w: 512, h: 512, u: "", p: b64, e: 1 }); }
+        }
       }
-      loadAnimation(json);
-    } catch(err) { setStatus('Error: ' + err.message, 'err'); }
-  };
-  if (file.name.endsWith('.tgs')) reader.readAsArrayBuffer(file);
-  else reader.readAsText(file);
+
+      // Inject fonts
+      if (fontFiles.length) {
+        if (!json.fonts) json.fonts = { list: [] };
+        for (let font of fontFiles) {
+          const b64 = await fileToBase64(font);
+          const fName = font.name.split('.')[0];
+          const ext = font.name.split('.').pop().toLowerCase();
+          const format = ext === 'ttf' ? 'truetype' : ext === 'otf' ? 'opentype' : ext;
+          const fontDataUrl = `data:font/${ext};charset=utf-8;base64,${b64.split(',')[1]}`;
+
+          const existing = json.fonts.list.find(f => f.fName === fName);
+          if (existing) {
+            existing.fClass = fontDataUrl;
+            existing.fFamily = fName;
+          } else {
+            json.fonts.list.push({ fName, fFamily: fName, fStyle: "Regular", fClass: fontDataUrl, ascent: 71 });
+          }
+
+          // Also load into DOM for preview
+          const newFont = new FontFace(fName, `url(${fontDataUrl})`);
+          await newFont.load();
+          document.fonts.add(newFont);
+
+          // Add to font dropdown if not already there
+          const fontSelect = document.getElementById('font-select');
+          if (!Array.from(fontSelect.options).some(o => o.value === fName)) {
+            const opt = document.createElement('option');
+            opt.value = fName;
+            opt.textContent = fName + " (Custom)";
+            fontSelect.appendChild(opt);
+            fontSelect.value = fName; // Auto-select the newly loaded font
+          }
+        }
+      }
+      setStatus((isTGS ? 'TGS' : 'JSON') + ' with assets loaded ✓', 'ok');
+    } else if (imageFiles.length === 1) {
+      const img = imageFiles[0];
+      const b64 = await fileToBase64(img);
+      const imgEl = new Image();
+      await new Promise(r => { imgEl.onload = r; imgEl.src = b64; });
+      json = makeImageJSON(b64, imgEl.width, imgEl.height);
+      setStatus('Image converted to Lottie ✓', 'ok');
+    } else {
+      throw new Error("Please upload a .json/.tgs file or a single image.");
+    }
+
+    if (json) loadAnimation(json);
+  } catch(err) {
+    setStatus('Error: ' + err.message, 'err');
+  }
   e.target.value = '';
 }
 
@@ -305,6 +426,48 @@ function makeFlameLayer(ind,nm,pos,colors,startFrame,opacity,op){return{ddd:0,in
 function makeFireJSON(){return{v:"5.7.4",fr:60,ip:0,op:60,w:512,h:512,nm:"Fire",ddd:0,assets:[],layers:[makeFlameLayer(1,"Flame1",[256,300],[[1,0.35,0,1],[1,0.6,0,1]],0,0.85,60),makeFlameLayer(2,"Flame2",[230,310],[[1,0.5,0,1],[1,0.8,0,1]],10,0.7,60),makeFlameLayer(3,"Flame3",[280,310],[[1,0.2,0,1],[1,0.5,0,1]],5,0.75,60)]};}
 
 function makeWaveJSON(){return{v:"5.7.4",fr:60,ip:0,op:90,w:512,h:512,nm:"Wave",ddd:0,assets:[],layers:[{ddd:0,ind:1,ty:4,nm:"Hand",sr:1,ks:{o:{a:0,k:100},p:{a:0,k:[256,256,0]},a:{a:0,k:[0,0,0]},r:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[-20]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:22,s:[20]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:45,s:[-20]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:67,s:[20]},{t:90,s:[-20]}]},s:{a:1,k:[{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:0,s:[80,80,100]},{i:{x:[.5],y:[1]},o:{x:[.5],y:[0]},t:10,s:[100,100,100]},{t:90,s:[80,80,100]}]}},ao:0,shapes:[{ty:"gr",nm:"Hand",it:[{ty:"sh",nm:"Palm",ks:{a:0,k:{i:[[0,0],[0,0],[0,0],[0,0]],o:[[0,0],[0,0],[0,0],[0,0]],v:[[-80,0],[80,0],[80,160],[-80,160]],c:true}}},{ty:"sh",nm:"Thumb",ks:{a:0,k:{i:[[0,0],[0,0],[0,0]],o:[[0,0],[0,0],[0,0]],v:[[-80,40],[-140,-20],[-80,0]],c:true}}},{ty:"fl",nm:"Fill",o:{a:0,k:100},c:{a:0,k:[1,0.75,0.2,1]},r:1},{ty:"tr",p:{a:0,k:[0,0]},a:{a:0,k:[0,0]},s:{a:0,k:[100,100]},r:{a:0,k:0},o:{a:0,k:100}}]}],ip:0,op:90,st:0,bm:0}]};}
+
+function createText() {
+  const text = document.getElementById('text-input').value || "Hello!";
+  const fontSelect = document.getElementById('font-select');
+  const fontName = fontSelect.options[fontSelect.selectedIndex].value;
+
+  const dataUrl = fontSelect.options[fontSelect.selectedIndex].getAttribute('data-url');
+
+  if (currentJSON) {
+    // Append to existing animation
+    const textLayer = makeTextJSON(text, fontName, fontName).layers[0];
+
+    // Ensure fonts exist
+    if (!currentJSON.fonts) currentJSON.fonts = { list: [] };
+
+    // Add font if not exists
+    const existingFont = currentJSON.fonts.list.find(f => f.fName === fontName);
+    if (!existingFont) {
+      const newFontObj = { fName: fontName, fFamily: fontName, fStyle: "Regular", ascent: 71.39892578125 };
+      if (dataUrl) newFontObj.fClass = dataUrl;
+      currentJSON.fonts.list.push(newFontObj);
+    }
+
+    // Add layer
+    currentJSON.layers.unshift(textLayer); // Add to front so it appears on top
+
+    // Update op/ip if needed
+    textLayer.op = currentJSON.op || 60;
+
+    // Reload animation
+    loadAnimation(currentJSON);
+    setStatus('Text appended to existing animation ✓', 'ok');
+  } else {
+    // Create new
+    const json = makeTextJSON(text, fontName, fontName);
+    if (dataUrl && json.fonts && json.fonts.list[0]) {
+      json.fonts.list[0].fClass = dataUrl;
+    }
+    loadAnimation(json);
+    setStatus('Text Lottie loaded ✓', 'ok');
+  }
+}
 
 function loadPreset(name) {
   const map = { heart: makeHeartJSON, star: makeStarJSON, thumbs: makeThumbsJSON, fire: makeFireJSON, wave: makeWaveJSON };
